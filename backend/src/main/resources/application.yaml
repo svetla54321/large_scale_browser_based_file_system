@@ -1,0 +1,25 @@
+spring:
+  application:
+    name: filesystem
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+  mvc:
+    apiversion:
+      supported: 1
+      use:
+        path-segment: 1
+
+springdoc:
+  api-docs:
+    enabled: false
+  swagger-ui:
+    enabled: false
+
+logging:
+  structured:
+    format:
+      console: ecs
+  pattern:
+    correlation: "[%X{requestId:-}] "

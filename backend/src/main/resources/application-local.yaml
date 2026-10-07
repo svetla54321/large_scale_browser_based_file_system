@@ -1,0 +1,25 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/filesystem
+    username: admin
+    password: test1234
+
+springdoc:
+  api-docs:
+    enabled: true
+  swagger-ui:
+    enabled: true
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,loggers
+
+logging:
+  structured:
+    format:
+      console: ""
+  level:
+    com.svetlecic.filesystem: debug
+    org.hibernate.SQL: debug

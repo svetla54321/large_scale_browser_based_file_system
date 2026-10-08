@@ -1,15 +1,14 @@
-package com.svetlecic.filesystem.node.domain;
+package com.svetlecic.filesystem.node.helper;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.svetlecic.filesystem.node.helper.NodeNameNormalizer;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 
-class NodeNameHelperUnicodeTest {
+class NodeNameNormalizerUnicodeTest {
 
     private static final int NO_BREAK_SPACE = 0x00A0;
     private static final int ZERO_WIDTH_SPACE = 0x200B;
@@ -48,6 +47,18 @@ class NodeNameHelperUnicodeTest {
     void shouldKeepSharpSAndDoubleSApart() {
         assertThat(NodeNameNormalizer.key("STRASSE")).isNotEqualTo(
             NodeNameNormalizer.key("STRA" + chars(0x00DF) + "E"));
+    }
+
+    @Test
+    void shouldKeepTagCharactersThatFinishAFlagAtTheEnd() {
+        var scotland = chars(0x1F3F4, 0xE0067, 0xE0062, 0xE0073, 0xE0063, 0xE0074, 0xE007F);
+
+        assertThat(NodeNameNormalizer.normalize("Scotland " + scotland + " ")).isEqualTo("Scotland " + scotland);
+    }
+
+    @Test
+    void shouldTreatNameOfOnlyTagCharactersAsBlank() {
+        assertThat(NodeNameNormalizer.normalize(chars(0xE0067, 0xE0062, 0xE007F))).isEmpty();
     }
 
     @Test

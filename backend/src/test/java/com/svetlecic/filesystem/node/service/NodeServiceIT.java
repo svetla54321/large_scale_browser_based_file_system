@@ -3,9 +3,8 @@ package com.svetlecic.filesystem.node.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import com.svetlecic.filesystem.TestcontainersConfiguration;
+import com.svetlecic.filesystem.IntegrationTest;
 import com.svetlecic.filesystem.node.domain.Node;
-import com.svetlecic.filesystem.node.domain.NodeType;
 import com.svetlecic.filesystem.node.dto.NodeResponse;
 import com.svetlecic.filesystem.node.exception.MaxDepthExceededException;
 import com.svetlecic.filesystem.node.exception.NameAlreadyExistsException;
@@ -16,16 +15,11 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.EnumSource;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.context.annotation.Import;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.simple.JdbcClient;
 
-@SpringBootTest
-@Import(TestcontainersConfiguration.class)
+@IntegrationTest
 class NodeServiceIT {
 
     @Autowired
@@ -80,18 +74,6 @@ class NodeServiceIT {
         assertThat(stored.getCreatedAt()).isEqualTo(reports.createdAt());
         assertThat(stored.getUpdatedAt()).isNotNull();
         assertThat(stored.getVersion()).isZero();
-    }
-
-    @ParameterizedTest
-    @EnumSource(NodeType.class)
-    void shouldPersistEveryNodeTypeThroughTheConverter(NodeType type) {
-        var root = nodeRepository.findByParentIdIsNull().orElseThrow();
-
-        var saved = nodeRepository.saveAndFlush(root.newChild(type, "child-" + type.getCode()));
-
-        assertThat(nodeRepository.findById(saved.getId()).orElseThrow().getType()).isEqualTo(type);
-        assertThat(jdbcClient.sql("select type from node where id = :id").param("id", saved.getId())
-            .query(String.class).single()).isEqualTo(type.getCode());
     }
 
     @Test

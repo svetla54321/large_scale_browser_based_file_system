@@ -8,8 +8,8 @@ import com.svetlecic.filesystem.node.exception.NodeNotFoundException;
 import com.svetlecic.filesystem.node.exception.RootFolderMissingException;
 import java.sql.SQLException;
 import java.util.List;
-import org.hibernate.exception.ConstraintViolationException.ConstraintKind;
 import org.hibernate.exception.ConstraintViolationException;
+import org.hibernate.exception.ConstraintViolationException.ConstraintKind;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.slf4j.MDC;
@@ -81,6 +81,15 @@ class ApiExceptionHandlerTest {
     void shouldTurnUniqueViolationFromConcurrentRequestIntoConflict() {
         var problem = apiExceptionHandler.handleDataIntegrityViolation(dataIntegrityViolation(ConstraintKind.UNIQUE),
             request);
+
+        assertThat(problem.getStatus()).isEqualTo(409);
+        assertThat(problem.getProperties()).containsEntry("code", "CONCURRENT_CHANGE");
+    }
+
+    @Test
+    void shouldTurnMissingParentFromConcurrentDeleteIntoConflict() {
+        var problem = apiExceptionHandler.handleDataIntegrityViolation(
+            dataIntegrityViolation(ConstraintKind.FOREIGN_KEY), request);
 
         assertThat(problem.getStatus()).isEqualTo(409);
         assertThat(problem.getProperties()).containsEntry("code", "CONCURRENT_CHANGE");

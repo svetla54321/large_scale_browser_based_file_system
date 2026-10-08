@@ -1,8 +1,8 @@
 package com.svetlecic.filesystem.builder;
 
 import com.svetlecic.filesystem.node.domain.Node;
-import com.svetlecic.filesystem.node.helper.NodeNameNormalizer;
 import com.svetlecic.filesystem.node.domain.NodeType;
+import com.svetlecic.filesystem.node.helper.NodeNameNormalizer;
 import java.time.Instant;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;

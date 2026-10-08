@@ -1,4 +1,4 @@
-export const API_BASE = '/api/v1'
+const API_BASE = '/api/v1'
 
 interface FieldViolation {
   field: string
@@ -22,7 +22,6 @@ export class ApiError extends Error {
   readonly code: string | undefined
   readonly requestId: string | null
   readonly errors: FieldViolation[]
-  readonly problem: ProblemDetail | undefined
 
   constructor(status: number, requestId: string | null, problem?: ProblemDetail) {
     super(problem?.detail ?? problem?.title ?? `HTTP ${status}`)
@@ -31,7 +30,6 @@ export class ApiError extends Error {
     this.code = typeof problem?.code === 'string' ? problem.code : undefined
     this.requestId = typeof problem?.requestId === 'string' ? problem.requestId : requestId
     this.errors = Array.isArray(problem?.errors) ? problem.errors : []
-    this.problem = problem
   }
 }
 
@@ -54,25 +52,47 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
   return (await response.json()) as T
 }
 
-const MESSAGES = new Map([
+export type NameRule = 'NAME_REQUIRED' | 'NAME_TOO_LONG' | 'NAME_RESERVED' | 'NAME_FORBIDDEN_CHARACTER'
+
+const NAME_MESSAGES: Record<NameRule | 'NAME_INVISIBLE_CHARACTER' | 'NAME_ALREADY_EXISTS', string> = {
+  NAME_REQUIRED: 'Enter a name.',
+  NAME_TOO_LONG: 'The name can have at most 255 characters.',
+  NAME_RESERVED: 'The name cannot be "." or "..".',
+  NAME_FORBIDDEN_CHARACTER: 'The name cannot contain \\ / : * ? " < > |',
+  NAME_INVISIBLE_CHARACTER: 'The name contains an invisible, control or unsupported character.',
+  NAME_ALREADY_EXISTS: 'Something with this name already exists in this folder.',
+}
+
+const MESSAGES = new Map<string, string>([
+  ...Object.entries(NAME_MESSAGES),
   ['NODE_NOT_FOUND', 'The folder does not exist or was deleted.'],
-  ['NAME_ALREADY_EXISTS', 'Something with this name already exists in this folder.'],
   ['CONCURRENT_CHANGE', 'The folder was changed at the same time. Reload and try again.'],
   ['MAX_DEPTH_EXCEEDED', 'Folders cannot be nested any deeper.'],
   ['INVALID_CURSOR', 'Could not load more items. Reload the folder.'],
-  ['NAME_REQUIRED', 'Enter a name.'],
-  ['NAME_TOO_LONG', 'The name can have at most 255 characters.'],
-  ['NAME_RESERVED', 'The name cannot be "." or "..".'],
-  ['NAME_FORBIDDEN_CHARACTER', 'The name cannot contain \\ / : * ? " < > |'],
-  ['NAME_INVISIBLE_CHARACTER', 'The name contains an invisible, control or unsupported character.'],
 ])
+
+const UNAVAILABLE = [502, 503, 504]
+
+export function nameMessage(rule: NameRule): string {
+  return NAME_MESSAGES[rule]
+}
 
 export function userMessage(error: unknown): string {
   if (error instanceof ApiError) {
     if (error.status === 0) return 'Cannot reach the server. Check your connection.'
+    if (UNAVAILABLE.includes(error.status)) return 'The server is not available right now. Please try again in a moment.'
     if (error.status >= 500) return 'Something went wrong on our side. Please try again.'
     const code = error.errors[0]?.code ?? error.code
     return (code && MESSAGES.get(code)) || 'The request could not be completed.'
   }
   return 'Unexpected error.'
+}
+
+export function isNotFound(error: unknown): boolean {
+  return error instanceof ApiError && error.status === 404
+}
+
+export function isNameProblem(error: unknown): boolean {
+  if (!(error instanceof ApiError)) return false
+  return error.code === 'NAME_ALREADY_EXISTS' || error.errors.some((violation) => violation?.field === 'name')
 }

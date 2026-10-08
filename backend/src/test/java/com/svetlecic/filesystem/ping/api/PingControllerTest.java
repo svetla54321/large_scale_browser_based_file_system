@@ -33,8 +33,30 @@ class PingControllerTest {
         assertThat(mockMvcTester.get().uri("/api/v99/ping"))
                 .hasStatus(400)
                 .hasContentType(MediaType.APPLICATION_PROBLEM_JSON)
-                .containsHeader("X-Request-Id");
+                .containsHeader("X-Request-Id")
+                .bodyJson()
+                .extractingPath("$.code")
+                .isEqualTo("BAD_REQUEST");
 
         assertThat(output).contains("Rejected GET /api/v99/ping with 400: Invalid API version");
+    }
+
+    @Test
+    void shouldGiveUnknownRouteTheStatusNameAsCode() {
+        assertThat(mockMvcTester.get().uri("/api/v1/nothing-here"))
+            .hasStatus(404)
+            .hasContentType(MediaType.APPLICATION_PROBLEM_JSON)
+            .bodyJson()
+            .extractingPath("$.code")
+            .isEqualTo("NOT_FOUND");
+    }
+
+    @Test
+    void shouldGiveUnsupportedMethodTheStatusNameAsCode() {
+        assertThat(mockMvcTester.delete().uri("/api/v1/ping"))
+            .hasStatus(405)
+            .bodyJson()
+            .extractingPath("$.code")
+            .isEqualTo("METHOD_NOT_ALLOWED");
     }
 }

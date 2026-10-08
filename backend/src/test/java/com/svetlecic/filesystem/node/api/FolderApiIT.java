@@ -4,7 +4,8 @@ import static com.svetlecic.filesystem.builder.CreateFolderRequestBuilder.aCreat
 import static java.util.Objects.nonNull;
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.svetlecic.filesystem.TestcontainersConfiguration;
+import com.svetlecic.filesystem.IntegrationTest;
+import com.svetlecic.filesystem.node.domain.Node;
 import com.svetlecic.filesystem.node.helper.NodeNameNormalizer;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
@@ -17,9 +18,6 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
-import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.test.web.servlet.assertj.MockMvcTester;
@@ -27,9 +25,7 @@ import org.springframework.test.web.servlet.assertj.MvcTestResult;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
-@SpringBootTest
-@AutoConfigureMockMvc
-@Import(TestcontainersConfiguration.class)
+@IntegrationTest
 class FolderApiIT {
 
     @Autowired
@@ -139,7 +135,10 @@ class FolderApiIT {
 
     @Test
     void shouldReturnBadRequestForNonNumericId() {
-        assertThat(mockMvcTester.get().uri("/api/v1/folders/abc")).hasStatus(400);
+        var result = mockMvcTester.get().uri("/api/v1/folders/abc").exchange();
+
+        assertThat(result).hasStatus(400);
+        assertThat(body(result).get("code").asString()).isEqualTo("BAD_REQUEST");
     }
 
     @Test
@@ -177,7 +176,10 @@ class FolderApiIT {
 
     @Test
     void shouldRejectInvalidCursor() {
-        assertThat(mockMvcTester.get().uri("/api/v1/folders/{id}/children?cursor=garbage!", rootId)).hasStatus(400);
+        var result = mockMvcTester.get().uri("/api/v1/folders/{id}/children?cursor=garbage!", rootId).exchange();
+
+        assertThat(result).hasStatus(400);
+        assertThat(body(result).get("code").asString()).isEqualTo("INVALID_CURSOR");
     }
 
     @Test
@@ -222,11 +224,105 @@ class FolderApiIT {
 
     @Test
     void shouldRejectNonTextualName() {
-        assertThat(mockMvcTester.post().uri("/api/v1/folders/{id}/folders", rootId)
+        var result = mockMvcTester.post().uri("/api/v1/folders/{id}/folders", rootId)
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"name\": 123}"))
-                .hasStatus(400);
+                .content("{\"name\": 123}")
+                .exchange();
+
+        assertThat(result).hasStatus(400);
+        assertThat(body(result).get("code").asString()).isEqualTo("MALFORMED_REQUEST_BODY");
         assertThat(childNames(rootId)).isEmpty();
+    }
+
+    @Test
+    void shouldRejectBrokenJson() {
+        var result = mockMvcTester.post().uri("/api/v1/folders/{id}/folders", rootId)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"name\": ")
+                .exchange();
+
+        assertThat(result).hasStatus(400);
+        assertThat(body(result).get("code").asString()).isEqualTo("MALFORMED_REQUEST_BODY");
+    }
+
+    @Test
+    void shouldReturnFolderWithItsParent() {
+        var id = body(createFolder(rootId, "Docs")).get("id").asLong();
+
+        assertThat(mockMvcTester.get().uri("/api/v1/folders/{id}", id))
+                .hasStatusOk()
+                .bodyJson()
+                .isLenientlyEqualTo("""
+                        {"id": %d, "name": "Docs", "parentId": %d}
+                        """.formatted(id, rootId));
+    }
+
+    @Test
+    void shouldTreatFileIdAsUnknownFolder() {
+        var fileId = insertFile(rootId, "notes.txt");
+
+        assertThat(mockMvcTester.get().uri("/api/v1/folders/{id}", fileId)).hasStatus(404);
+        assertThat(mockMvcTester.get().uri("/api/v1/folders/{id}/children", fileId)).hasStatus(404);
+        var created = createFolder(fileId, "Docs");
+        assertThat(created).hasStatus(404);
+        assertThat(body(created).get("code").asString()).isEqualTo("NODE_NOT_FOUND");
+    }
+
+    @Test
+    void shouldRejectFolderNamedLikeExistingFile() {
+        insertFile(rootId, "Report.pdf");
+
+        var duplicate = createFolder(rootId, "report.PDF");
+
+        assertThat(duplicate).hasStatus(409);
+        assertThat(body(duplicate).get("code").asString()).isEqualTo("NAME_ALREADY_EXISTS");
+    }
+
+    @Test
+    void shouldRejectFolderDeeperThanMaxDepth() {
+        var parentId = rootId;
+        for (var depth = 1; depth <= Node.MAX_DEPTH; depth++) {
+            parentId = body(createFolder(parentId, "level-" + depth)).get("id").asLong();
+        }
+
+        var tooDeep = createFolder(parentId, "too-deep");
+
+        assertThat(tooDeep).hasStatus(400);
+        assertThat(body(tooDeep).get("code").asString()).isEqualTo("MAX_DEPTH_EXCEEDED");
+    }
+
+    @Test
+    void shouldUseFiftyItemsAsDefaultPageSize() {
+        jdbcClient.sql("""
+                        insert into node (parent_id, type, name, name_key, ancestor_path)
+                        select id, 'FILE', 'file-' || lpad(n::text, 2, '0'), 'file-' || lpad(n::text, 2, '0'),
+                            ancestor_path || id || '/'
+                        from node, generate_series(1, 51) as n
+                        where id = :root
+                        """)
+                .param("root", rootId)
+                .update();
+
+        var page = body(mockMvcTester.get().uri("/api/v1/folders/{id}/children", rootId).exchange());
+
+        assertThat(page.get("items").size()).isEqualTo(50);
+        assertThat(page.get("nextCursor").isNull()).isFalse();
+    }
+
+    @Test
+    void shouldSortAccentedLetterNextToItsBaseLetter() {
+        var cevapi = Character.toString(0x010C) + "evapi";
+        List.of("Dom", cevapi, "Cesta").forEach(name -> createFolder(rootId, name));
+
+        assertThat(childNames(rootId)).containsExactly("Cesta", cevapi, "Dom");
+    }
+
+    @Test
+    void shouldStoreNameOfMaxLengthCountedInCharacters() {
+        var name = Character.toString(0x1F600).repeat(NodeNameNormalizer.MAX_LENGTH);
+
+        assertThat(createFolder(rootId, name)).hasStatus(201);
+        assertThat(childNames(rootId)).containsExactly(name);
     }
 
     @Test
@@ -280,15 +376,17 @@ class FolderApiIT {
         assertThat(body(result).get("requestId").asString()).isEqualTo("trace-me-42");
     }
 
-    private void insertFile(long parentId, String name) {
-        jdbcClient.sql("""
+    private long insertFile(long parentId, String name) {
+        return jdbcClient.sql("""
                         insert into node (parent_id, type, name, name_key, ancestor_path)
                         select id, 'FILE', :name, :key, ancestor_path || id || '/' from node where id = :parent
+                        returning id
                         """)
                 .param("name", name)
                 .param("key", NodeNameNormalizer.key(name))
                 .param("parent", parentId)
-                .update();
+                .query(Long.class)
+                .single();
     }
 
     private List<String> allChildNames(long folderId, int pageSize) {

@@ -11,7 +11,8 @@ public final class NodeNameNormalizer {
     public static final int MAX_LENGTH = 255;
 
     private static final Pattern SPACE_SEPARATORS = Pattern.compile("\\p{Zs}");
-    private static final Pattern SURROUNDING_BLANKS = Pattern.compile("^[\\s\\p{Z}\\p{Cf}]+|[\\s\\p{Z}\\p{Cf}]+$");
+    private static final Pattern SURROUNDING_BLANKS =
+        Pattern.compile("^[\\s\\p{Z}\\p{Cf}]+|[[\\s\\p{Z}\\p{Cf}]&&[^\\x{E0020}-\\x{E007F}]]+$");
 
     public static String normalize(String raw) {
         var singleSpaced = SPACE_SEPARATORS.matcher(raw).replaceAll(" ");

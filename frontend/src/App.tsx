@@ -1,48 +1,21 @@
-import { useEffect, useState } from 'react'
-import { ApiError, apiFetch, userMessage } from './api'
-import { log } from './logger'
-
-interface PingResponse {
-  message: string
-}
-
-type BackendStatus =
-  | { state: 'checking' }
-  | { state: 'up' }
-  | { state: 'down'; message: string; requestId: string | null }
+import { Link, Route, Routes } from 'react-router'
+import { FolderMissing, FolderRoute } from './features/browser/FolderRoute'
 
 export default function App() {
-  const [status, setStatus] = useState<BackendStatus>({ state: 'checking' })
-
-  useEffect(() => {
-    const controller = new AbortController()
-
-    apiFetch<PingResponse>('/ping', { signal: controller.signal })
-      .then(() => setStatus({ state: 'up' }))
-      .catch((error) => {
-        if (controller.signal.aborted) return
-        log.warn('Ping failed', { error })
-        setStatus({
-          state: 'down',
-          message: userMessage(error),
-          requestId: error instanceof ApiError ? error.requestId : null,
-        })
-      })
-
-    return () => controller.abort()
-  }, [])
-
   return (
-    <main>
-      <h1>Files</h1>
-      {status.state === 'checking' && <p>Backend: checking...</p>}
-      {status.state === 'up' && <p>Backend: connected</p>}
-      {status.state === 'down' && (
-        <p role="alert">
-          Backend: {status.message}
-          {status.requestId && <small> Reference: {status.requestId}</small>}
-        </p>
-      )}
-    </main>
+    <>
+      <header>
+        <h1>
+          <Link to="/">Files</Link>
+        </h1>
+      </header>
+      <main>
+        <Routes>
+          <Route path="/" element={<FolderRoute />} />
+          <Route path="/folders/:id" element={<FolderRoute />} />
+          <Route path="*" element={<FolderMissing />} />
+        </Routes>
+      </main>
+    </>
   )
 }

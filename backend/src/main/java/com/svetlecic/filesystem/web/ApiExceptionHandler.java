@@ -14,8 +14,8 @@ import java.util.regex.Pattern;
 import java.util.stream.Stream;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.tomcat.util.http.InvalidParameterException;
-import org.hibernate.exception.ConstraintViolationException.ConstraintKind;
 import org.hibernate.exception.ConstraintViolationException;
+import org.hibernate.exception.ConstraintViolationException.ConstraintKind;
 import org.jspecify.annotations.Nullable;
 import org.slf4j.MDC;
 import org.springframework.context.MessageSourceResolvable;
@@ -41,9 +41,10 @@ import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExcep
 @RestControllerAdvice
 class ApiExceptionHandler extends ResponseEntityExceptionHandler {
 
-    static final String CODE = "code";
-    static final String ERRORS = "errors";
-    static final String REQUEST_ID = "requestId";
+    private static final String CODE = "code";
+    private static final String ERRORS = "errors";
+    private static final String REQUEST_ID = "requestId";
+    private static final String CLIENT_ERROR = "CLIENT_ERROR";
 
     private static final String UNEXPECTED_ERROR = "Unexpected error";
     private static final String MALFORMED_QUERY_STRING = "MALFORMED_QUERY_STRING";
@@ -142,8 +143,17 @@ class ApiExceptionHandler extends ResponseEntityExceptionHandler {
             HttpStatusCode statusCode, WebRequest request) {
         if (body instanceof ProblemDetail problemDetail) {
             addRequestId(problemDetail);
+            addStatusCodeWhenMissing(problemDetail, statusCode);
         }
         return super.createResponseEntity(body, headers, statusCode, request);
+    }
+
+    private static void addStatusCodeWhenMissing(ProblemDetail problemDetail, HttpStatusCode statusCode) {
+        var properties = problemDetail.getProperties();
+        if (statusCode.is4xxClientError() && (isNull(properties) || !properties.containsKey(CODE))) {
+            var status = HttpStatus.resolve(statusCode.value());
+            problemDetail.setProperty(CODE, nonNull(status) ? status.name() : CLIENT_ERROR);
+        }
     }
 
     private static ConstraintKind constraintKind(Throwable throwable) {

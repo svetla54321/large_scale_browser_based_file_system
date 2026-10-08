@@ -1,12 +1,11 @@
-package com.svetlecic.filesystem.node.domain;
+package com.svetlecic.filesystem.node.helper;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.svetlecic.filesystem.node.helper.NodeNameNormalizer;
 import java.util.Locale;
 import org.junit.jupiter.api.Test;
 
-class NodeNameHelperTest {
+class NodeNameNormalizerTest {
 
     @Test
     void shouldTrimSurroundingWhitespaceIncludingUnicodeSpaces() {

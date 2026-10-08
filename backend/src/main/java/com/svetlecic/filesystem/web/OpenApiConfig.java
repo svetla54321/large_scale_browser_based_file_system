@@ -17,8 +17,8 @@ class OpenApiConfig {
     OpenAPI openApi() {
         return new OpenAPI().info(new Info()
                 .title("File system API")
-                .description("Browser-based file system: a folder tree with files, exact-name search and "
-                        + "prefix suggestions. Errors are returned as RFC 9457 problem details."));
+                .description("Browser-based file system: browse and create folders. Errors are returned as "
+                        + "RFC 9457 problem details with a stable code and the request id."));
     }
 
     @Bean

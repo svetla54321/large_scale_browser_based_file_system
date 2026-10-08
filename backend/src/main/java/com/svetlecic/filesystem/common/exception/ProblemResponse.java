@@ -15,7 +15,9 @@ public record ProblemResponse(
     String detail,
     @Schema(example = "/api/v1/folders/1/folders")
     String instance,
-    @Schema(description = "Stable, machine-readable error code", example = "NAME_ALREADY_EXISTS")
+    @Schema(description = "Stable, machine-readable error code on every 4xx; errors without a specific code use the "
+        + "status name, such as NOT_FOUND or METHOD_NOT_ALLOWED; absent on 5xx", example = "NAME_ALREADY_EXISTS",
+        nullable = true)
     String code,
     @Schema(description = "Same value as the X-Request-Id response header")
     String requestId,

@@ -1,5 +1,8 @@
 package com.svetlecic.filesystem.web;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
+import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -8,19 +11,15 @@ import org.springframework.mock.web.MockFilterChain;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
 
-import java.util.concurrent.atomic.AtomicReference;
-
-import static org.assertj.core.api.Assertions.assertThat;
-
 class RequestIdFilterTest {
 
-    private final RequestIdFilter filter = new RequestIdFilter();
+    private final RequestIdFilter requestIdFilter = new RequestIdFilter();
 
     @Test
     void shouldGenerateRequestIdWhenHeaderIsMissing() throws Exception {
         var response = new MockHttpServletResponse();
 
-        filter.doFilter(new MockHttpServletRequest(), response, new MockFilterChain());
+        requestIdFilter.doFilter(new MockHttpServletRequest(), response, new MockFilterChain());
 
         assertThat(response.getHeader("X-Request-Id"))
                 .matches("[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}");
@@ -32,7 +31,7 @@ class RequestIdFilterTest {
         request.addHeader("X-Request-Id", "nginx-4f2a9c");
         var response = new MockHttpServletResponse();
 
-        filter.doFilter(request, response, new MockFilterChain());
+        requestIdFilter.doFilter(request, response, new MockFilterChain());
 
         assertThat(response.getHeader("X-Request-Id")).isEqualTo("nginx-4f2a9c");
     }
@@ -44,7 +43,7 @@ class RequestIdFilterTest {
         request.addHeader("X-Request-Id", header);
         var response = new MockHttpServletResponse();
 
-        filter.doFilter(request, response, new MockFilterChain());
+        requestIdFilter.doFilter(request, response, new MockFilterChain());
 
         assertThat(response.getHeader("X-Request-Id")).isNotEqualTo(header).hasSize(36);
     }
@@ -55,7 +54,7 @@ class RequestIdFilterTest {
         request.addHeader("X-Request-Id", "abc-123");
         var idDuringRequest = new AtomicReference<String>();
 
-        filter.doFilter(request, new MockHttpServletResponse(), (req, res) -> idDuringRequest.set(MDC.get("requestId")));
+        requestIdFilter.doFilter(request, new MockHttpServletResponse(), (req, res) -> idDuringRequest.set(MDC.get("requestId")));
 
         assertThat(idDuringRequest).hasValue("abc-123");
         assertThat(MDC.get("requestId")).isNull();

@@ -3,6 +3,9 @@ spring:
     url: jdbc:postgresql://localhost:5432/filesystem
     username: admin
     password: test1234
+  flyway:
+    clean-disabled: false
+    ignore-migration-patterns: "*:future,*:pending"
 
 springdoc:
   api-docs:

@@ -1,6 +1,9 @@
 spring:
   application:
     name: filesystem
+  threads:
+    virtual:
+      enabled: true
   jpa:
     open-in-view: false
     hibernate:
@@ -23,3 +26,5 @@ logging:
       console: ecs
   pattern:
     correlation: "[%X{requestId:-}] "
+  level:
+    org.springframework.web.servlet.PageNotFound: error

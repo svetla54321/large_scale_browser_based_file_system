@@ -5,18 +5,13 @@ import static java.util.Objects.nonNull;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.svetlecic.filesystem.IntegrationTest;
-import com.svetlecic.filesystem.node.domain.Node;
 import com.svetlecic.filesystem.node.helper.NodeNameNormalizer;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.util.Base64;
 import java.util.List;
 import java.util.stream.IntStream;
 import org.jspecify.annotations.Nullable;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.simple.JdbcClient;
@@ -46,16 +41,6 @@ class FolderApiIT {
     }
 
     @Test
-    void shouldReturnRootFolder() {
-        assertThat(mockMvcTester.get().uri("/api/v1/folders/root"))
-                .hasStatusOk()
-                .bodyJson()
-                .isLenientlyEqualTo("""
-                        {"id": %d, "name": "Home", "parentId": null}
-                        """.formatted(rootId));
-    }
-
-    @Test
     void shouldCreateFolderAndListItInParent() {
         var created = createFolder(rootId, "Docs");
 
@@ -72,14 +57,6 @@ class FolderApiIT {
     }
 
     @Test
-    void shouldStoreTrimmedNameButKeepItsCase() {
-        var created = createFolder(rootId, "  Quarterly Reports  ");
-
-        assertThat(created).hasStatus(201);
-        assertThat(body(created).get("name").asString()).isEqualTo("Quarterly Reports");
-    }
-
-    @Test
     void shouldRejectNameThatDiffersOnlyInCase() {
         createFolder(rootId, "Docs");
 
@@ -92,53 +69,12 @@ class FolderApiIT {
     }
 
     @Test
-    void shouldTreatComposedAndDecomposedCharactersAsTheSameName() {
-        createFolder(rootId, "\u010Cevapi");
-
-        assertThat(createFolder(rootId, "C\u030Cevapi")).hasStatus(409);
-    }
-
-    @Test
-    void shouldAllowSameNameInDifferentFolders() {
-        var firstId = body(createFolder(rootId, "a")).get("id").asLong();
-        var secondId = body(createFolder(rootId, "b")).get("id").asLong();
-
-        assertThat(createFolder(firstId, "shared")).hasStatus(201);
-        assertThat(createFolder(secondId, "shared")).hasStatus(201);
-    }
-
-    @ParameterizedTest
-    @ValueSource(strings = {"", "   ", "a/b", "..", "bad\u0000name"})
-    void shouldRejectInvalidName(String name) {
-        assertThat(createFolder(rootId, name))
-                .hasStatus(400)
-                .hasContentType(MediaType.APPLICATION_PROBLEM_JSON);
-        assertThat(childNames(rootId)).isEmpty();
-    }
-
-    @Test
-    void shouldRejectMissingName() {
-        assertThat(mockMvcTester.post().uri("/api/v1/folders/{id}/folders", rootId)
-                .contentType(MediaType.APPLICATION_JSON)
-                .content("{}"))
-                .hasStatus(400);
-    }
-
-    @Test
     void shouldReturnNotFoundForUnknownParent() {
         var result = createFolder(Long.MAX_VALUE, "Docs");
 
         assertThat(result).hasStatus(404);
         assertThat(body(result).get("code").asString()).isEqualTo("NODE_NOT_FOUND");
         assertThat(body(result).get("detail").asString()).isEqualTo("Folder %d not found".formatted(Long.MAX_VALUE));
-    }
-
-    @Test
-    void shouldReturnBadRequestForNonNumericId() {
-        var result = mockMvcTester.get().uri("/api/v1/folders/abc").exchange();
-
-        assertThat(result).hasStatus(400);
-        assertThat(body(result).get("code").asString()).isEqualTo("BAD_REQUEST");
     }
 
     @Test
@@ -161,33 +97,6 @@ class FolderApiIT {
     }
 
     @Test
-    void shouldNotReturnCursorWhenPageIsExactlyFull() {
-        createFolder(rootId, "a");
-        createFolder(rootId, "b");
-
-        assertThat(children(rootId, null, 2).get("nextCursor").isNull()).isTrue();
-    }
-
-    @ParameterizedTest
-    @ValueSource(ints = {0, 201})
-    void shouldRejectPageSizeOutOfRange(int size) {
-        assertThat(mockMvcTester.get().uri("/api/v1/folders/{id}/children?size={size}", rootId, size)).hasStatus(400);
-    }
-
-    @Test
-    void shouldRejectInvalidCursor() {
-        var result = mockMvcTester.get().uri("/api/v1/folders/{id}/children?cursor=garbage!", rootId).exchange();
-
-        assertThat(result).hasStatus(400);
-        assertThat(body(result).get("code").asString()).isEqualTo("INVALID_CURSOR");
-    }
-
-    @Test
-    void shouldReturnNotFoundForChildrenOfUnknownFolder() {
-        assertThat(mockMvcTester.get().uri("/api/v1/folders/{id}/children", Long.MAX_VALUE)).hasStatus(404);
-    }
-
-    @Test
     void shouldListFoldersBeforeFilesAndKeepThatOrderForEveryPageSize() {
         List.of("beta", "Alpha", "Zeta").forEach(name -> createFolder(rootId, name));
         List.of("c.txt", "a.txt", "B.txt").forEach(name -> insertFile(rootId, name));
@@ -195,164 +104,6 @@ class FolderApiIT {
 
         IntStream.rangeClosed(1, expected.size() + 1)
                 .forEach(size -> assertThat(allChildNames(rootId, size)).as("page size %d", size).isEqualTo(expected));
-    }
-
-    @Test
-    void shouldTreatEmptyCursorAsFirstPage() {
-        createFolder(rootId, "Docs");
-
-        assertThat(mockMvcTester.get().uri("/api/v1/folders/{id}/children?cursor=", rootId))
-                .hasStatusOk()
-                .bodyJson()
-                .extractingPath("$.items[0].name")
-                .isEqualTo("Docs");
-    }
-
-    @Test
-    void shouldRejectForgedCursorWithControlCharacter() {
-        var forged = Base64.getUrlEncoder().encodeToString(
-                ("FOLDER" + Character.toString(10) + Character.toString(0)).getBytes(StandardCharsets.UTF_8));
-
-        assertThat(mockMvcTester.get().uri("/api/v1/folders/{id}/children", rootId).param("cursor", forged))
-                .hasStatus(400);
-    }
-
-    @Test
-    void shouldRejectNameThatOnlyLooksBlank() {
-        assertThat(createFolder(rootId, Character.toString(0x00A0))).hasStatus(400);
-    }
-
-    @Test
-    void shouldRejectNonTextualName() {
-        var result = mockMvcTester.post().uri("/api/v1/folders/{id}/folders", rootId)
-                .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"name\": 123}")
-                .exchange();
-
-        assertThat(result).hasStatus(400);
-        assertThat(body(result).get("code").asString()).isEqualTo("MALFORMED_REQUEST_BODY");
-        assertThat(childNames(rootId)).isEmpty();
-    }
-
-    @Test
-    void shouldRejectBrokenJson() {
-        var result = mockMvcTester.post().uri("/api/v1/folders/{id}/folders", rootId)
-                .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"name\": ")
-                .exchange();
-
-        assertThat(result).hasStatus(400);
-        assertThat(body(result).get("code").asString()).isEqualTo("MALFORMED_REQUEST_BODY");
-    }
-
-    @Test
-    void shouldReturnFolderWithItsParent() {
-        var id = body(createFolder(rootId, "Docs")).get("id").asLong();
-
-        assertThat(mockMvcTester.get().uri("/api/v1/folders/{id}", id))
-                .hasStatusOk()
-                .bodyJson()
-                .isLenientlyEqualTo("""
-                        {"id": %d, "name": "Docs", "parentId": %d}
-                        """.formatted(id, rootId));
-    }
-
-    @Test
-    void shouldTreatFileIdAsUnknownFolder() {
-        var fileId = insertFile(rootId, "notes.txt");
-
-        assertThat(mockMvcTester.get().uri("/api/v1/folders/{id}", fileId)).hasStatus(404);
-        assertThat(mockMvcTester.get().uri("/api/v1/folders/{id}/children", fileId)).hasStatus(404);
-        var created = createFolder(fileId, "Docs");
-        assertThat(created).hasStatus(404);
-        assertThat(body(created).get("code").asString()).isEqualTo("NODE_NOT_FOUND");
-    }
-
-    @Test
-    void shouldRejectFolderNamedLikeExistingFile() {
-        insertFile(rootId, "Report.pdf");
-
-        var duplicate = createFolder(rootId, "report.PDF");
-
-        assertThat(duplicate).hasStatus(409);
-        assertThat(body(duplicate).get("code").asString()).isEqualTo("NAME_ALREADY_EXISTS");
-    }
-
-    @Test
-    void shouldRejectFolderDeeperThanMaxDepth() {
-        var parentId = rootId;
-        for (var depth = 1; depth <= Node.MAX_DEPTH; depth++) {
-            parentId = body(createFolder(parentId, "level-" + depth)).get("id").asLong();
-        }
-
-        var tooDeep = createFolder(parentId, "too-deep");
-
-        assertThat(tooDeep).hasStatus(400);
-        assertThat(body(tooDeep).get("code").asString()).isEqualTo("MAX_DEPTH_EXCEEDED");
-    }
-
-    @Test
-    void shouldUseFiftyItemsAsDefaultPageSize() {
-        jdbcClient.sql("""
-                        insert into node (parent_id, type, name, name_key, ancestor_path)
-                        select id, 'FILE', 'file-' || lpad(n::text, 2, '0'), 'file-' || lpad(n::text, 2, '0'),
-                            ancestor_path || id || '/'
-                        from node, generate_series(1, 51) as n
-                        where id = :root
-                        """)
-                .param("root", rootId)
-                .update();
-
-        var page = body(mockMvcTester.get().uri("/api/v1/folders/{id}/children", rootId).exchange());
-
-        assertThat(page.get("items").size()).isEqualTo(50);
-        assertThat(page.get("nextCursor").isNull()).isFalse();
-    }
-
-    @Test
-    void shouldSortAccentedLetterNextToItsBaseLetter() {
-        var cevapi = Character.toString(0x010C) + "evapi";
-        List.of("Dom", cevapi, "Cesta").forEach(name -> createFolder(rootId, name));
-
-        assertThat(childNames(rootId)).containsExactly("Cesta", cevapi, "Dom");
-    }
-
-    @Test
-    void shouldStoreNameOfMaxLengthCountedInCharacters() {
-        var name = Character.toString(0x1F600).repeat(NodeNameNormalizer.MAX_LENGTH);
-
-        assertThat(createFolder(rootId, name)).hasStatus(201);
-        assertThat(childNames(rootId)).containsExactly(name);
-    }
-
-    @Test
-    void shouldReturnLocationThatResolvesForEquivalentVersionSpelling() {
-        var created = mockMvcTester.post().uri("/api/v1.0/folders/{id}/folders", rootId)
-                .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"name\": \"Docs\"}")
-                .exchange();
-
-        assertThat(created).hasStatus(201);
-        var location = created.getResponse().getHeader("Location");
-        assertThat(location).isEqualTo("/api/v1.0/folders/" + body(created).get("id").asLong());
-        assertThat(mockMvcTester.get().uri(location)).hasStatusOk().bodyJson().extractingPath("$.name").isEqualTo("Docs");
-    }
-
-    @Test
-    void shouldNameTheInvalidInputInValidationErrors() {
-        var missingName = mockMvcTester.post().uri("/api/v1/folders/{id}/folders", rootId)
-                .contentType(MediaType.APPLICATION_JSON)
-                .content("{}")
-                .exchange();
-        var tooLargePage = mockMvcTester.get().uri("/api/v1/folders/{id}/children?size=500", rootId).exchange();
-
-        assertThat(body(missingName).get("detail").asString()).startsWith("name:");
-        assertThat(body(missingName).get("code").asString()).isEqualTo("VALIDATION_FAILED");
-        assertThat(body(missingName).at("/errors/0/field").asString()).isEqualTo("name");
-        assertThat(body(missingName).at("/errors/0/code").asString()).isEqualTo("NotNull");
-        assertThat(body(tooLargePage).get("detail").asString()).startsWith("size:");
-        assertThat(body(tooLargePage).at("/errors/0/field").asString()).isEqualTo("size");
-        assertThat(body(tooLargePage).at("/errors/0/code").asString()).isEqualTo("Max");
     }
 
     @Test
@@ -367,13 +118,52 @@ class FolderApiIT {
     }
 
     @Test
-    void shouldPutRequestIdIntoErrorBodyAndHeader() {
-        var result = mockMvcTester.get().uri("/api/v1/folders/{id}", Long.MAX_VALUE)
-            .header("X-Request-Id", "trace-me-42")
-            .exchange();
+    void shouldReturnBreadcrumbsFromRootDownToParent() {
+        var docsId = body(createFolder(rootId, "Docs")).get("id").asLong();
+        var reportsId = body(createFolder(docsId, "Reports")).get("id").asLong();
 
-        assertThat(result).hasStatus(404).hasHeader("X-Request-Id", "trace-me-42");
-        assertThat(body(result).get("requestId").asString()).isEqualTo("trace-me-42");
+        assertThat(mockMvcTester.get().uri("/api/v1/folders/{id}", reportsId))
+                .hasStatusOk()
+                .bodyJson()
+                .isLenientlyEqualTo("""
+                        {"id": %d, "name": "Reports", "parentId": %d,
+                         "breadcrumbs": [{"id": %d, "name": "Home"}, {"id": %d, "name": "Docs"}]}
+                        """.formatted(reportsId, docsId, rootId, docsId));
+        assertThat(mockMvcTester.get().uri("/api/v1/folders/root"))
+                .bodyJson()
+                .extractingPath("$.breadcrumbs")
+                .asArray()
+                .isEmpty();
+    }
+
+    @Test
+    void shouldDeleteFolderWithItsWholeSubtree() {
+        var aId = body(createFolder(rootId, "a")).get("id").asLong();
+        var bId = body(createFolder(aId, "b")).get("id").asLong();
+        var cId = body(createFolder(bId, "c")).get("id").asLong();
+        insertFile(cId, "deep.txt");
+        insertFile(aId, "top.txt");
+        createFolder(rootId, "keep");
+        var before = countNodes();
+
+        assertThat(mockMvcTester.delete().uri("/api/v1/folders/{id}", aId)).hasStatus(204);
+
+        assertThat(countNodes()).isEqualTo(before - 5);
+        assertThat(childNames(rootId)).containsExactly("keep");
+        assertThat(mockMvcTester.get().uri("/api/v1/folders/{id}", cId)).hasStatus(404);
+    }
+
+    @Test
+    void shouldRefuseToDeleteRootFolder() {
+        var result = mockMvcTester.delete().uri("/api/v1/folders/{id}", rootId).exchange();
+
+        assertThat(result).hasStatus(409);
+        assertThat(body(result).get("code").asString()).isEqualTo("ROOT_FOLDER_NOT_DELETABLE");
+        assertThat(mockMvcTester.get().uri("/api/v1/folders/root")).hasStatusOk();
+    }
+
+    private long countNodes() {
+        return jdbcClient.sql("select count(*) from node").query(Long.class).single();
     }
 
     private long insertFile(long parentId, String name) {

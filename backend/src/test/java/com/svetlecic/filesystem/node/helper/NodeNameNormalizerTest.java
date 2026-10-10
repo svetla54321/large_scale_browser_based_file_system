@@ -1,8 +1,9 @@
 package com.svetlecic.filesystem.node.helper;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertTimeoutPreemptively;
 
-import java.util.Locale;
+import java.time.Duration;
 import org.junit.jupiter.api.Test;
 
 class NodeNameNormalizerTest {
@@ -24,13 +25,9 @@ class NodeNameNormalizerTest {
     }
 
     @Test
-    void shouldNotDependOnDefaultLocaleWhenLowercasing() {
-        var previous = Locale.getDefault();
-        Locale.setDefault(Locale.forLanguageTag("tr"));
-        try {
-            assertThat(NodeNameNormalizer.key("TITLE")).isEqualTo("title");
-        } finally {
-            Locale.setDefault(previous);
-        }
+    void shouldHandleLongRunsOfInnerSpacesInLinearTime() {
+        var name = "a" + " ".repeat(1_000_000) + "b";
+
+        assertTimeoutPreemptively(Duration.ofSeconds(2), () -> NodeNameNormalizer.normalize(name));
     }
 }

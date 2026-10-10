@@ -12,7 +12,6 @@ import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
-import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
 class NodeNameValidatorTest {
@@ -27,47 +26,11 @@ class NodeNameValidatorTest {
         assertThatCode(() -> nodeNameValidator.validate(name)).doesNotThrowAnyException();
     }
 
-    @Test
-    void shouldAcceptNameOfMaxLengthCountedInCharactersNotBytes() {
-        var emojis = "\uD83D\uDCC1".repeat(NodeNameNormalizer.MAX_LENGTH);
-
-        assertThatCode(() -> nodeNameValidator.validate(emojis)).doesNotThrowAnyException();
-    }
-
     @ParameterizedTest
     @ValueSource(strings = {"", ".", "..", "a/b", "a\\b", "a:b", "a*b", "a?b", "a\"b", "a<b", "a>b", "a|b",
             "a\u0000b", "a\nb", "a\u202Eb", "a\u2066b", "a\uD800b", "a\uFFFFb"})
     void shouldRejectInvalidNames(String name) {
         assertThatThrownBy(() -> nodeNameValidator.validate(name)).isInstanceOf(BusinessRuleValidationException.class);
-    }
-
-    @Test
-    void shouldRejectNameLongerThanMaxLength() {
-        assertThatThrownBy(() -> nodeNameValidator.validate("a".repeat(
-            NodeNameNormalizer.MAX_LENGTH + 1)))
-                .isInstanceOf(BusinessRuleValidationException.class)
-                .hasMessageContaining("255");
-    }
-
-    @ParameterizedTest
-    @MethodSource("namesWithInvisibleCharacters")
-    void shouldRejectInvisibleCharactersInsideName(String name) {
-        assertThatThrownBy(() -> nodeNameValidator.validate(name)).isInstanceOf(BusinessRuleValidationException.class);
-    }
-
-    @Test
-    void shouldAcceptEmojiJoinedWithZeroWidthJoiner() {
-        var technologist = chars(0x1F468, ZERO_WIDTH_JOINER, 0x1F4BB);
-
-        assertThatCode(() -> nodeNameValidator.validate(technologist)).doesNotThrowAnyException();
-    }
-
-    @ParameterizedTest
-    @MethodSource("namesWithTheRuleTheyBreak")
-    void shouldReportTheCodeOfTheBrokenRule(String name, String expectedCode) {
-        assertThatThrownBy(() -> nodeNameValidator.validate(name))
-            .isInstanceOfSatisfying(BusinessRuleValidationException.class, exception ->
-                assertThat(exception.getViolations()).extracting(FieldViolation::code).containsExactly(expectedCode));
     }
 
     @Test

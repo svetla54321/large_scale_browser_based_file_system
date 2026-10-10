@@ -68,7 +68,8 @@ const MESSAGES = new Map<string, string>([
   ['NODE_NOT_FOUND', 'The folder does not exist or was deleted.'],
   ['CONCURRENT_CHANGE', 'The folder was changed at the same time. Reload and try again.'],
   ['MAX_DEPTH_EXCEEDED', 'Folders cannot be nested any deeper.'],
-  ['INVALID_CURSOR', 'Could not load more items. Reload the folder.'],
+  ['ROOT_FOLDER_NOT_DELETABLE', 'The root folder cannot be deleted.'],
+  ['INVALID_CURSOR', 'Could not load more items. Reload the page and try again.'],
 ])
 
 const UNAVAILABLE = [502, 503, 504]
@@ -81,7 +82,10 @@ export function userMessage(error: unknown): string {
   if (error instanceof ApiError) {
     if (error.status === 0) return 'Cannot reach the server. Check your connection.'
     if (UNAVAILABLE.includes(error.status)) return 'The server is not available right now. Please try again in a moment.'
-    if (error.status >= 500) return 'Something went wrong on our side. Please try again.'
+    if (error.status >= 500) {
+      const reference = error.requestId ? ` Reference: ${error.requestId}` : ''
+      return `Something went wrong on our side. Please try again.${reference}`
+    }
     const code = error.errors[0]?.code ?? error.code
     return (code && MESSAGES.get(code)) || 'The request could not be completed.'
   }

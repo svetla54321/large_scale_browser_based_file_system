@@ -1,13 +1,14 @@
 import { useState, type FormEvent } from 'react'
 import { isNameProblem, isNotFound, nameMessage, userMessage } from '../../api/client'
-import { createFolder } from '../../api/folders'
-import type { NodeResponse } from '../../api/types'
+import { createFile, createFolder } from '../../api/folders'
+import type { NodeResponse, NodeType } from '../../api/types'
 import { log } from '../../logger'
 import { validateName } from '../../shared/validateName'
 
 interface Props {
+  type: NodeType
   parentId: number
-  onCreated: () => void
+  onCreated: (node: NodeResponse) => void
   onParentMissing: () => void
 }
 
@@ -16,11 +17,15 @@ interface FormError {
   aboutName: boolean
 }
 
-export function CreateFolderForm({ parentId, onCreated, onParentMissing }: Props) {
+const LABELS: Record<NodeType, string> = { FOLDER: 'Folder', FILE: 'File' }
+
+export function CreateNodeForm({ type, parentId, onCreated, onParentMissing }: Props) {
   const [name, setName] = useState('')
   const [error, setError] = useState<FormError | null>(null)
   const [created, setCreated] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
+  const inputId = `new-${type.toLowerCase()}-name`
+  const errorId = `${inputId}-error`
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -33,42 +38,42 @@ export function CreateFolderForm({ parentId, onCreated, onParentMissing }: Props
 
     setSaving(true)
     setError(null)
-    let folder: NodeResponse
+    let node: NodeResponse
     try {
-      folder = await createFolder(parentId, name)
+      node = type === 'FOLDER' ? await createFolder(parentId, name) : await createFile(parentId, name)
     } catch (failure) {
       if (isNotFound(failure)) {
         onParentMissing()
         return
       }
-      log.warn('Creating folder failed', { parentId, error: failure })
+      log.warn('Creating node failed', { type, parentId, error: failure })
       setError({ message: userMessage(failure), aboutName: isNameProblem(failure) })
       return
     } finally {
       setSaving(false)
     }
     setName('')
-    setCreated(`Folder "${folder.name}" created.`)
-    onCreated()
+    setCreated(`${LABELS[type]} "${node.name}" created.`)
+    onCreated(node)
   }
 
   return (
-    <form className="create-folder" onSubmit={handleSubmit} noValidate>
-      <label htmlFor="new-folder-name">New folder</label>
+    <form className="create-node" onSubmit={handleSubmit} noValidate>
+      <label htmlFor={inputId}>New {LABELS[type].toLowerCase()}</label>
       <input
-        id="new-folder-name"
+        id={inputId}
         value={name}
         onChange={(event) => setName(event.target.value)}
         readOnly={saving}
         aria-invalid={error?.aboutName ?? false}
-        aria-describedby={error?.aboutName ? 'new-folder-error' : undefined}
+        aria-describedby={error?.aboutName ? errorId : undefined}
         autoComplete="off"
       />
       <button type="submit" disabled={saving}>
         {saving ? 'Creating...' : 'Create'}
       </button>
       {error && (
-        <p id="new-folder-error" className="error" role="alert">
+        <p id={errorId} className="error" role="alert">
           {error.message}
         </p>
       )}

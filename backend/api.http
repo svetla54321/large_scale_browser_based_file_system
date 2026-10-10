@@ -1,0 +1,109 @@
+### Root folder
+GET {{api}}/folders/root
+
+> {%
+    client.global.set("rootId", response.body.id);
+%}
+
+### Create a folder in the root (201, Location)
+POST {{api}}/folders/{{rootId}}/folders
+Content-Type: application/json
+
+{
+  "name": "Demo {{$timestamp}}"
+}
+
+> {%
+    client.global.set("demoId", response.body.id);
+%}
+
+### Create a subfolder
+POST {{api}}/folders/{{demoId}}/folders
+Content-Type: application/json
+
+{
+  "name": "Work"
+}
+
+> {%
+    client.global.set("workId", response.body.id);
+%}
+
+### Create a file in the subfolder
+POST {{api}}/folders/{{workId}}/files
+Content-Type: application/json
+
+{
+  "name": "report.pdf"
+}
+
+> {%
+    client.global.set("fileId", response.body.id);
+%}
+
+### Create a file with the same name one level up
+POST {{api}}/folders/{{demoId}}/files
+Content-Type: application/json
+
+{
+  "name": "Report.pdf"
+}
+
+### Same name in another letter case (409 NAME_ALREADY_EXISTS)
+POST {{api}}/folders/{{demoId}}/files
+Content-Type: application/json
+
+{
+  "name": "REPORT.PDF"
+}
+
+### Forbidden character (400 VALIDATION_FAILED)
+POST {{api}}/folders/{{demoId}}/files
+Content-Type: application/json
+
+{
+  "name": "a/b.txt"
+}
+
+### Folder with breadcrumbs
+GET {{api}}/folders/{{workId}}
+
+### Children, first page of one item
+GET {{api}}/folders/{{demoId}}/children?size=1
+
+> {%
+    client.global.set("cursor", response.body.nextCursor);
+%}
+
+### Children, next page
+GET {{api}}/folders/{{demoId}}/children?size=1&cursor={{cursor}}
+
+### Files with this exact name in every folder
+GET {{api}}/search/files?name=REPORT.PDF
+
+### Files with this exact name in Work and below
+GET {{api}}/search/files?name=report.pdf&folderId={{workId}}
+
+### Search in a folder that does not exist (404 NODE_NOT_FOUND)
+GET {{api}}/search/files?name=report.pdf&folderId=999999999
+
+### Top 10 files whose name starts with "rep"
+GET {{api}}/search/suggestions?prefix=rep
+
+### One file
+GET {{api}}/files/{{fileId}}
+
+### Delete the file (204)
+DELETE {{api}}/files/{{fileId}}
+
+### Delete the same file again (404)
+DELETE {{api}}/files/{{fileId}}
+
+### Delete the root (409 ROOT_FOLDER_NOT_DELETABLE)
+DELETE {{api}}/folders/{{rootId}}
+
+### Delete the demo folder with everything in it (204)
+DELETE {{api}}/folders/{{demoId}}
+
+### The subfolder went with it (404)
+GET {{api}}/folders/{{workId}}

@@ -8,13 +8,13 @@ import java.time.Instant;
 public record NodeResponse(
     @Schema(description = "Node id", example = "42")
     long id,
-    @Schema(description = "Name as entered, with surrounding whitespace removed", example = "Reports")
+    @Schema(description = "Name", example = "Reports")
     String name,
-    @Schema(description = "Whether the node is a folder or a file")
+    @Schema(description = "FOLDER or FILE")
     NodeType type,
-    @Schema(description = "Id of the folder that contains this node", example = "1")
+    @Schema(description = "Parent folder id", example = "1")
     long parentId,
-    @Schema(description = "When the node was created (UTC)")
+    @Schema(description = "Creation time (UTC)")
     Instant createdAt) {
 
 }

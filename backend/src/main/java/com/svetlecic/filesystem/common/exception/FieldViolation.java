@@ -10,9 +10,9 @@ import java.util.List;
 public record FieldViolation(
     @Schema(description = "Field or parameter name", example = "name")
     String field,
-    @Schema(description = "Stable code of the broken rule", example = "NAME_FORBIDDEN_CHARACTER")
+    @Schema(description = "Rule code", example = "NAME_FORBIDDEN_CHARACTER")
     String code,
-    @Schema(description = "Human-readable explanation", example = "must not contain any of \\ / : * ? \" < > |")
+    @Schema(description = "Message", example = "must not contain any of \\ / : * ? \" < > |")
     String message) {
 
     public static final Comparator<FieldViolation> BY_FIELD_AND_CODE =

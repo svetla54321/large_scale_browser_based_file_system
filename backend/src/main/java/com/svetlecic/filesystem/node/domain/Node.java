@@ -1,11 +1,15 @@
 package com.svetlecic.filesystem.node.domain;
 
+import static java.util.Objects.isNull;
+
 import com.svetlecic.filesystem.common.persistence.BaseEntity;
 import com.svetlecic.filesystem.node.domain.converter.NodeTypeConverter;
 import com.svetlecic.filesystem.node.exception.MaxDepthExceededException;
+import com.svetlecic.filesystem.node.helper.AncestorPathParser;
 import com.svetlecic.filesystem.node.helper.NodeNameNormalizer;
 import jakarta.persistence.Convert;
 import jakarta.persistence.Entity;
+import java.util.List;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -38,7 +42,7 @@ public class Node extends BaseEntity {
     }
 
     public Node newChild(NodeType childType, String childName) {
-        if (getDepth() >= MAX_DEPTH) {
+        if (NodeType.FOLDER.equals(childType) && getDepth() >= MAX_DEPTH) {
             throw new MaxDepthExceededException(MAX_DEPTH);
         }
         return new Node(getId(), childType, childName, ancestorPath + getId() + "/");
@@ -46,6 +50,14 @@ public class Node extends BaseEntity {
 
     public boolean isFolder() {
         return NodeType.FOLDER.equals(type);
+    }
+
+    public boolean isRoot() {
+        return isNull(parentId);
+    }
+
+    public List<Long> getAncestorIds() {
+        return AncestorPathParser.parseIds(ancestorPath);
     }
 
     public int getDepth() {

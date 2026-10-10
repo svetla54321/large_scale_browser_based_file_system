@@ -20,6 +20,7 @@ import org.jspecify.annotations.Nullable;
 import org.slf4j.MDC;
 import org.springframework.context.MessageSourceResolvable;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.dao.PessimisticLockingFailureException;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
@@ -30,6 +31,7 @@ import org.springframework.validation.method.ParameterErrors;
 import org.springframework.validation.method.ParameterValidationResult;
 import org.springframework.web.ErrorResponse;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.context.request.ServletWebRequest;
@@ -93,6 +95,13 @@ class ApiExceptionHandler extends ResponseEntityExceptionHandler {
         };
     }
 
+    @ExceptionHandler(PessimisticLockingFailureException.class)
+    ProblemDetail handleLockTimeout(PessimisticLockingFailureException exception, HttpServletRequest request) {
+
+        logRejected(request.getMethod(), request.getRequestURI(), HttpStatus.CONFLICT.value(), CONCURRENT_CHANGE_DETAIL);
+        return problem(HttpStatus.CONFLICT, CONCURRENT_CHANGE_DETAIL, CONCURRENT_CHANGE);
+    }
+
     @ExceptionHandler(Exception.class)
     ProblemDetail handleUnexpected(Exception exception, HttpServletRequest request) {
         logUnexpected(request, exception);
@@ -118,6 +127,14 @@ class ApiExceptionHandler extends ResponseEntityExceptionHandler {
             .sorted(FieldViolation.BY_FIELD_AND_CODE)
             .toList();
         describe(exception, violations);
+        return handleExceptionInternal(exception, null, headers, status, request);
+    }
+
+    @Override
+    protected @Nullable ResponseEntity<Object> handleMissingServletRequestParameter(
+            MissingServletRequestParameterException exception, HttpHeaders headers, HttpStatusCode status,
+            WebRequest request) {
+        describe(exception, List.of(new FieldViolation(exception.getParameterName(), "Required", "is required")));
         return handleExceptionInternal(exception, null, headers, status, request);
     }
 

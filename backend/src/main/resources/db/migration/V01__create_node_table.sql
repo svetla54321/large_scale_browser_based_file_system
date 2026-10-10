@@ -18,3 +18,5 @@ create table node (
 create unique index uq_node_single_root on node ((parent_id is null)) where parent_id is null;
 
 create index ix_node_children on node (parent_id, type, name);
+
+create index ix_node_file_search on node (name_key, ancestor_path) where type = 'FILE';

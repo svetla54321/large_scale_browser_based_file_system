@@ -12,4 +12,8 @@ public class NodeNotFoundException extends ApplicationException {
     public static NodeNotFoundException folder(long id) {
         return new NodeNotFoundException("Folder %d not found".formatted(id));
     }
+
+    public static NodeNotFoundException file(long id) {
+        return new NodeNotFoundException("File %d not found".formatted(id));
+    }
 }

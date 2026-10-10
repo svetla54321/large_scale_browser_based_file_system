@@ -1,8 +1,10 @@
 package com.svetlecic.filesystem.node.api;
 
 import com.svetlecic.filesystem.common.exception.ProblemResponse;
+import com.svetlecic.filesystem.node.domain.NodeType;
+import com.svetlecic.filesystem.node.dto.CreateFileRequest;
 import com.svetlecic.filesystem.node.dto.CreateFolderRequest;
-import com.svetlecic.filesystem.node.dto.FolderPage;
+import com.svetlecic.filesystem.node.dto.FolderPageResponse;
 import com.svetlecic.filesystem.node.dto.FolderResponse;
 import com.svetlecic.filesystem.node.dto.NodeResponse;
 import com.svetlecic.filesystem.node.service.NodeService;
@@ -18,16 +20,19 @@ import jakarta.validation.constraints.Min;
 import java.net.URI;
 import lombok.RequiredArgsConstructor;
 import org.jspecify.annotations.Nullable;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
-@Tag(name = "Folders", description = "Browse the folder tree and create folders")
+@Tag(name = "Folders")
 @RestController
 @RequestMapping("/folders")
 @RequiredArgsConstructor
@@ -37,9 +42,9 @@ class FolderController {
 
     private final NodeService nodeService;
 
-    @Operation(summary = "Get the root folder", description = "The root folder always exists and cannot be deleted.")
+    @Operation(summary = "Get the root folder")
     @ApiResponse(responseCode = "200", description = "Root folder")
-    @ApiResponse(responseCode = "500", description = "ROOT_FOLDER_MISSING: the database has no root folder",
+    @ApiResponse(responseCode = "500", description = "Root folder is missing",
         content = @Content(mediaType = PROBLEM_JSON, schema = @Schema(implementation = ProblemResponse.class)))
     @GetMapping("/root")
     FolderResponse getRoot() {
@@ -47,11 +52,11 @@ class FolderController {
         return nodeService.getRoot();
     }
 
-    @Operation(summary = "Get a folder")
+    @Operation(summary = "Get a folder with its breadcrumbs")
     @ApiResponse(responseCode = "200", description = "Folder found")
-    @ApiResponse(responseCode = "400", description = "Id is not a number",
+    @ApiResponse(responseCode = "400", description = "Invalid id",
         content = @Content(mediaType = PROBLEM_JSON, schema = @Schema(implementation = ProblemResponse.class)))
-    @ApiResponse(responseCode = "404", description = "NODE_NOT_FOUND: no folder with this id",
+    @ApiResponse(responseCode = "404", description = "Folder not found",
         content = @Content(mediaType = PROBLEM_JSON, schema = @Schema(implementation = ProblemResponse.class)))
     @GetMapping("/{id}")
     FolderResponse getFolder(
@@ -60,52 +65,73 @@ class FolderController {
         return nodeService.getFolder(id);
     }
 
-    @Operation(summary = "List a folder's contents",
-        description =
-            "Folders first, then files, each sorted by name. Keyset pagination: pass nextCursor from "
-                + "the previous page as cursor to get the next page.")
-    @ApiResponse(responseCode = "200", description = "One page of the folder's contents")
-    @ApiResponse(responseCode = "400",
-        description = "INVALID_CURSOR: the cursor was not issued by this API; "
-            + "VALIDATION_FAILED: size is outside 1 to 200 (see errors)",
+    @Operation(summary = "List folder contents", description = "Folders first, then files, sorted by name.")
+    @ApiResponse(responseCode = "200", description = "One page of contents")
+    @ApiResponse(responseCode = "400", description = "Invalid id, size or cursor",
         content = @Content(mediaType = PROBLEM_JSON, schema = @Schema(implementation = ProblemResponse.class)))
-    @ApiResponse(responseCode = "404", description = "NODE_NOT_FOUND: no folder with this id",
+    @ApiResponse(responseCode = "404", description = "Folder not found",
         content = @Content(mediaType = PROBLEM_JSON, schema = @Schema(implementation = ProblemResponse.class)))
     @GetMapping("/{id}/children")
-    FolderPage getChildren(
+    FolderPageResponse getChildren(
         @Parameter(description = "Folder id", example = "1") @PathVariable long id,
-        @Parameter(description = "nextCursor from the previous page; omit for the first page")
+        @Parameter(description = "Cursor from the previous page")
         @RequestParam(required = false) @Nullable String cursor,
         @Parameter(description = "Page size, 1 to 200") @RequestParam(defaultValue = "50") @Min(1) @Max(200) int size) {
 
         return nodeService.getChildren(id, cursor, size);
     }
 
-    @Operation(summary = "Create a folder",
-        description = "The name is trimmed and must be unique in the parent folder regardless of letter case.")
-    @ApiResponse(responseCode = "201", description = "Folder created; Location points to the new folder")
-    @ApiResponse(responseCode = "400",
-        description =
-            "VALIDATION_FAILED: the name is missing (errors: NotNull) or breaks one or more rules (errors: "
-                + "NAME_REQUIRED, NAME_TOO_LONG, NAME_RESERVED, NAME_FORBIDDEN_CHARACTER, NAME_INVISIBLE_CHARACTER); "
-                + "MAX_DEPTH_EXCEEDED: the parent is already 32 levels deep; "
-                + "MALFORMED_REQUEST_BODY: the body is not valid JSON or name is not a string",
+    @Operation(summary = "Create a folder")
+    @ApiResponse(responseCode = "201", description = "Folder created")
+    @ApiResponse(responseCode = "400", description = "Invalid name or folder too deep",
         content = @Content(mediaType = PROBLEM_JSON, schema = @Schema(implementation = ProblemResponse.class)))
-    @ApiResponse(responseCode = "404", description = "NODE_NOT_FOUND: the parent folder does not exist",
+    @ApiResponse(responseCode = "404", description = "Parent folder not found",
         content = @Content(mediaType = PROBLEM_JSON, schema = @Schema(implementation = ProblemResponse.class)))
-    @ApiResponse(responseCode = "409",
-        description =
-            "NAME_ALREADY_EXISTS: a file or folder with the same name already exists in the parent; "
-                + "CONCURRENT_CHANGE: another request changed the same folder at the same time",
+    @ApiResponse(responseCode = "409", description = "Name already taken",
         content = @Content(mediaType = PROBLEM_JSON, schema = @Schema(implementation = ProblemResponse.class)))
     @PostMapping("/{parentId}/folders")
     ResponseEntity<NodeResponse> createFolder(
         @Parameter(hidden = true) @PathVariable String version,
-        @Parameter(description = "Id of the folder to create the new folder in", example = "1") @PathVariable long parentId,
+        @Parameter(description = "Parent folder id", example = "1") @PathVariable long parentId,
         @Valid @RequestBody CreateFolderRequest request) {
 
-        var folder = nodeService.createFolder(parentId, request.name());
+        var folder = nodeService.create(parentId, NodeType.FOLDER, request.name());
         var location = URI.create("/api/%s/folders/%d".formatted(version, folder.id()));
         return ResponseEntity.created(location).body(folder);
+    }
+
+    @Operation(summary = "Create a file")
+    @ApiResponse(responseCode = "201", description = "File created")
+    @ApiResponse(responseCode = "400", description = "Invalid name",
+        content = @Content(mediaType = PROBLEM_JSON, schema = @Schema(implementation = ProblemResponse.class)))
+    @ApiResponse(responseCode = "404", description = "Parent folder not found",
+        content = @Content(mediaType = PROBLEM_JSON, schema = @Schema(implementation = ProblemResponse.class)))
+    @ApiResponse(responseCode = "409", description = "Name already taken",
+        content = @Content(mediaType = PROBLEM_JSON, schema = @Schema(implementation = ProblemResponse.class)))
+    @PostMapping("/{parentId}/files")
+    ResponseEntity<NodeResponse> createFile(
+        @Parameter(hidden = true) @PathVariable String version,
+        @Parameter(description = "Parent folder id", example = "1") @PathVariable long parentId,
+        @Valid @RequestBody CreateFileRequest request) {
+
+        var file = nodeService.create(parentId, NodeType.FILE, request.name());
+        var location = URI.create("/api/%s/files/%d".formatted(version, file.id()));
+        return ResponseEntity.created(location).body(file);
+    }
+
+    @Operation(summary = "Delete a folder and everything in it")
+    @ApiResponse(responseCode = "204", description = "Folder deleted")
+    @ApiResponse(responseCode = "400", description = "Invalid id",
+        content = @Content(mediaType = PROBLEM_JSON, schema = @Schema(implementation = ProblemResponse.class)))
+    @ApiResponse(responseCode = "404", description = "Folder not found",
+        content = @Content(mediaType = PROBLEM_JSON, schema = @Schema(implementation = ProblemResponse.class)))
+    @ApiResponse(responseCode = "409", description = "Root folder, or the folder is busy",
+        content = @Content(mediaType = PROBLEM_JSON, schema = @Schema(implementation = ProblemResponse.class)))
+    @DeleteMapping("/{id}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    void deleteFolder(
+        @Parameter(description = "Folder id", example = "42") @PathVariable long id) {
+
+        nodeService.deleteFolder(id);
     }
 }

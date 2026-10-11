@@ -1,0 +1,39 @@
+spring:
+  application:
+    name: filesystem
+  threads:
+    virtual:
+      enabled: true
+  datasource:
+    hikari:
+      connection-init-sql: "set lock_timeout = '5s'"
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+  mvc:
+    apiversion:
+      supported: 1
+      use:
+        path-segment: 1
+
+management:
+  endpoint:
+    health:
+      probes:
+        enabled: true
+
+springdoc:
+  api-docs:
+    enabled: false
+  swagger-ui:
+    enabled: false
+
+logging:
+  structured:
+    format:
+      console: ecs
+  pattern:
+    correlation: "[%X{requestId:-}] "
+  level:
+    org.springframework.web.servlet.PageNotFound: error

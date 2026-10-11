@@ -1,0 +1,77 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '25'
+          cache: maven
+      - run: ./mvnw -B verify
+      - name: Test summary
+        if: always()
+        run: |
+          python3 - <<'EOF' >> "$GITHUB_STEP_SUMMARY"
+          import glob
+          import xml.etree.ElementTree as ET
+
+          rows = []
+          for path in sorted(glob.glob('target/surefire-reports/TEST-*.xml') + glob.glob('target/failsafe-reports/TEST-*.xml')):
+              suite = ET.parse(path).getroot()
+              failed = int(suite.get('failures', 0)) + int(suite.get('errors', 0))
+              rows.append((suite.get('name').rsplit('.', 1)[-1], int(suite.get('tests', 0)), failed, int(suite.get('skipped', 0))))
+
+          print('## Backend tests\n')
+          print(f'**{sum(r[1] for r in rows)} tests**, {sum(r[2] for r in rows)} failed, {sum(r[3] for r in rows)} skipped\n')
+          print('| Class | Tests | Failed | Skipped |')
+          print('|---|---|---|---|')
+          for name, tests, failed, skipped in rows:
+              print(f'| {name} | {tests} | {failed} | {skipped} |')
+          EOF
+
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm test
+      - run: npm run build
+
+  images:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - run: docker compose build

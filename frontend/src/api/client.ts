@@ -1,0 +1,102 @@
+const API_BASE = '/api/v1'
+
+interface FieldViolation {
+  field: string
+  code: string
+  message: string
+}
+
+interface ProblemDetail {
+  type?: string
+  title?: string
+  status?: number
+  detail?: string
+  instance?: string
+  code?: string
+  requestId?: string
+  errors?: FieldViolation[]
+}
+
+export class ApiError extends Error {
+  readonly status: number
+  readonly code: string | undefined
+  readonly requestId: string | null
+  readonly errors: FieldViolation[]
+
+  constructor(status: number, requestId: string | null, problem?: ProblemDetail) {
+    super(problem?.detail ?? problem?.title ?? `HTTP ${status}`)
+    this.name = 'ApiError'
+    this.status = status
+    this.code = typeof problem?.code === 'string' ? problem.code : undefined
+    this.requestId = typeof problem?.requestId === 'string' ? problem.requestId : requestId
+    this.errors = Array.isArray(problem?.errors) ? problem.errors : []
+  }
+}
+
+export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
+  let response: Response
+  try {
+    response = await fetch(`${API_BASE}${path}`, init)
+  } catch (error) {
+    if (init?.signal?.aborted) throw error
+    throw new ApiError(0, null)
+  }
+
+  if (!response.ok) {
+    const isProblem = response.headers.get('Content-Type')?.includes('application/problem+json')
+    const problem = isProblem ? await response.json().catch(() => undefined) : undefined
+    throw new ApiError(response.status, response.headers.get('X-Request-Id'), problem)
+  }
+
+  if (response.status === 204) return undefined as T
+  return (await response.json()) as T
+}
+
+export type NameRule = 'NAME_REQUIRED' | 'NAME_TOO_LONG' | 'NAME_RESERVED' | 'NAME_FORBIDDEN_CHARACTER'
+
+const NAME_MESSAGES: Record<NameRule | 'NAME_INVISIBLE_CHARACTER' | 'NAME_ALREADY_EXISTS', string> = {
+  NAME_REQUIRED: 'Enter a name.',
+  NAME_TOO_LONG: 'The name can have at most 255 characters.',
+  NAME_RESERVED: 'The name cannot be "." or "..".',
+  NAME_FORBIDDEN_CHARACTER: 'The name cannot contain \\ / : * ? " < > |',
+  NAME_INVISIBLE_CHARACTER: 'The name contains an invisible, control or unsupported character.',
+  NAME_ALREADY_EXISTS: 'Something with this name already exists in this folder.',
+}
+
+const MESSAGES = new Map<string, string>([
+  ...Object.entries(NAME_MESSAGES),
+  ['NODE_NOT_FOUND', 'The folder does not exist or was deleted.'],
+  ['CONCURRENT_CHANGE', 'The folder was changed at the same time. Reload and try again.'],
+  ['MAX_DEPTH_EXCEEDED', 'Folders cannot be nested any deeper.'],
+  ['ROOT_FOLDER_NOT_DELETABLE', 'The root folder cannot be deleted.'],
+  ['INVALID_CURSOR', 'Could not load more items. Reload the page and try again.'],
+])
+
+const UNAVAILABLE = [502, 503, 504]
+
+export function nameMessage(rule: NameRule): string {
+  return NAME_MESSAGES[rule]
+}
+
+export function userMessage(error: unknown): string {
+  if (error instanceof ApiError) {
+    if (error.status === 0) return 'Cannot reach the server. Check your connection.'
+    if (UNAVAILABLE.includes(error.status)) return 'The server is not available right now. Please try again in a moment.'
+    if (error.status >= 500) {
+      const reference = error.requestId ? ` Reference: ${error.requestId}` : ''
+      return `Something went wrong on our side. Please try again.${reference}`
+    }
+    const code = error.errors[0]?.code ?? error.code
+    return (code && MESSAGES.get(code)) || 'The request could not be completed.'
+  }
+  return 'Unexpected error.'
+}
+
+export function isNotFound(error: unknown): boolean {
+  return error instanceof ApiError && error.status === 404
+}
+
+export function isNameProblem(error: unknown): boolean {
+  if (!(error instanceof ApiError)) return false
+  return error.code === 'NAME_ALREADY_EXISTS' || error.errors.some((violation) => violation?.field === 'name')
+}

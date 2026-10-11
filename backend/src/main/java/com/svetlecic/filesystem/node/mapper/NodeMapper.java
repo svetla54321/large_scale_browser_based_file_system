@@ -19,7 +19,8 @@ public interface NodeMapper {
 
     @Mapping(target = "items", source = "nodes")
     @Mapping(target = "nextCursor", source = "nextCursor")
-    FolderPageResponse toFolderPageResponse(List<Node> nodes, @Nullable String nextCursor);
+    @Mapping(target = "totalItems", source = "totalItems")
+    FolderPageResponse toFolderPageResponse(List<Node> nodes, @Nullable String nextCursor, long totalItems);
 
     @Mapping(target = "id", source = "folder.id")
     @Mapping(target = "name", source = "folder.name")

@@ -13,10 +13,11 @@ vi.mock('../../api/folders', () => ({
   deleteNode: vi.fn(),
   createFolder: vi.fn(),
   createFile: vi.fn(),
+  renameNode: vi.fn(),
 }))
 
 function node(id: number, name: string, type: NodeResponse['type'] = 'FILE'): NodeResponse {
-  return { id, name, type, parentId: 2, createdAt: '' }
+  return { id, name, type, parentId: 2, createdAt: '2026-10-11T08:00:00Z' }
 }
 
 const WORK = node(3, 'Work', 'FOLDER')
@@ -37,7 +38,7 @@ function rowOf(text: string) {
 }
 
 function rows() {
-  return Array.from(document.querySelectorAll('.node-list li'), (row) => row.textContent)
+  return Array.from(document.querySelectorAll('.node-list .name'), (name) => name.textContent)
 }
 
 async function createFileNamed(name: string) {
@@ -50,7 +51,7 @@ async function createFileNamed(name: string) {
 describe('FolderRoute', () => {
   beforeEach(() => {
     vi.mocked(getFolder).mockResolvedValue({ id: 2, name: 'Docs', parentId: 1, breadcrumbs: [{ id: 1, name: 'Home' }] })
-    vi.mocked(getChildren).mockResolvedValue({ items: [WORK, NOTES], nextCursor: null })
+    vi.mocked(getChildren).mockResolvedValue({ items: [WORK, NOTES], nextCursor: null, totalItems: 2 })
     vi.spyOn(window, 'confirm').mockReturnValue(true)
   })
 
@@ -91,6 +92,6 @@ describe('FolderRoute', () => {
 
     await createFileNamed('m.txt')
 
-    expect(rows()).toEqual(['Work/Delete', 'm.txtDelete', 'notes.txtDelete'])
+    expect(rows()).toEqual(['Work/', 'm.txt', 'notes.txt'])
   })
 })

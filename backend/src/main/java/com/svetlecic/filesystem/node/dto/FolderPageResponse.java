@@ -9,6 +9,8 @@ public record FolderPageResponse(
     @Schema(description = "Folders and files")
     List<NodeResponse> items,
     @Schema(description = "Cursor for the next page, null on the last page", nullable = true)
-    @Nullable String nextCursor) {
+    @Nullable String nextCursor,
+    @Schema(description = "Number of items in the folder", example = "120")
+    long totalItems) {
 
 }

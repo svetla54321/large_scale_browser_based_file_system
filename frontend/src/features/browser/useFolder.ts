@@ -6,7 +6,7 @@ import { log } from '../../logger'
 type FolderState =
   | { status: 'loading' }
   | { status: 'failed'; error: unknown }
-  | { status: 'ready'; folder: FolderResponse; items: NodeResponse[]; nextCursor: string | null }
+  | { status: 'ready'; folder: FolderResponse; items: NodeResponse[]; nextCursor: string | null; totalItems: number }
 
 const names = new Intl.Collator('und')
 
@@ -27,7 +27,7 @@ export function useFolder(folderId: number | null) {
     folderRequest
       .then(async (folder) => {
         const page = await getChildren(folder.id, null, signal)
-        setState({ status: 'ready', folder, items: page.items, nextCursor: page.nextCursor })
+        setState({ status: 'ready', folder, items: page.items, nextCursor: page.nextCursor, totalItems: page.totalItems })
       })
       .catch((error) => {
         if (signal.aborted) return
@@ -49,7 +49,7 @@ export function useFolder(folderId: number | null) {
       if (current.status !== 'ready' || current.folder.id !== id || current.nextCursor !== cursor) return current
       const shown = new Set(current.items.map((item) => item.id))
       const added = page.items.filter((item) => !shown.has(item.id))
-      return { ...current, items: [...current.items, ...added], nextCursor: page.nextCursor }
+      return { ...current, items: [...current.items, ...added], nextCursor: page.nextCursor, totalItems: page.totalItems }
     })
     return page
   }, [])
@@ -58,17 +58,19 @@ export function useFolder(folderId: number | null) {
     setState((current) => {
       if (current.status !== 'ready' || current.items.some((item) => item.id === node.id)) return current
       const last = current.items.at(-1)
-      if (current.nextCursor !== null && (last === undefined || compareNodes(node, last) > 0)) return current
+      const totalItems = current.totalItems + 1
+      if (current.nextCursor !== null && (last === undefined || compareNodes(node, last) > 0)) return { ...current, totalItems }
       const index = current.items.findIndex((item) => compareNodes(node, item) < 0)
       const items = index === -1 ? [...current.items, node] : current.items.toSpliced(index, 0, node)
-      return { ...current, items }
+      return { ...current, items, totalItems }
     })
   }, [])
 
   const removeItem = useCallback((id: number) => {
-    setState((current) =>
-      current.status === 'ready' ? { ...current, items: current.items.filter((item) => item.id !== id) } : current,
-    )
+    setState((current) => {
+      if (current.status !== 'ready' || !current.items.some((item) => item.id === id)) return current
+      return { ...current, items: current.items.filter((item) => item.id !== id), totalItems: current.totalItems - 1 }
+    })
   }, [])
 
   return { state, retry, loadMore, insertItem, removeItem }

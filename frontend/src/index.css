@@ -128,7 +128,8 @@ header h1 a {
   font-size: 0.85rem;
 }
 
-.empty {
+.empty,
+.count {
   color: #666;
 }
 
@@ -174,4 +175,42 @@ h2[tabindex='-1']:focus {
   body {
     padding: 1rem;
   }
+}
+
+.no-suggestions {
+  padding: 0.25rem 0.5rem;
+  color: #666;
+}
+
+.node-list .entry {
+  display: flex;
+  flex: 1;
+  gap: 0.4rem;
+}
+
+.node-list .date {
+  color: #666;
+  font-size: 0.85rem;
+  white-space: nowrap;
+}
+
+.node-list .actions,
+.rename {
+  display: flex;
+  gap: 0.25rem;
+}
+
+.node-list .actions button,
+.rename button {
+  font-size: 0.85rem;
+}
+
+.rename {
+  flex: 1;
+  flex-wrap: wrap;
+}
+
+.rename .error {
+  flex-basis: 100%;
+  margin: 0;
 }

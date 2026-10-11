@@ -19,7 +19,9 @@ import org.hibernate.exception.ConstraintViolationException.ConstraintKind;
 import org.jspecify.annotations.Nullable;
 import org.slf4j.MDC;
 import org.springframework.context.MessageSourceResolvable;
+import org.springframework.dao.ConcurrencyFailureException;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.dao.PessimisticLockingFailureException;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -95,8 +97,8 @@ class ApiExceptionHandler extends ResponseEntityExceptionHandler {
         };
     }
 
-    @ExceptionHandler(PessimisticLockingFailureException.class)
-    ProblemDetail handleLockTimeout(PessimisticLockingFailureException exception, HttpServletRequest request) {
+    @ExceptionHandler({PessimisticLockingFailureException.class, OptimisticLockingFailureException.class})
+    ProblemDetail handleConcurrentChange(ConcurrencyFailureException exception, HttpServletRequest request) {
 
         logRejected(request.getMethod(), request.getRequestURI(), HttpStatus.CONFLICT.value(), CONCURRENT_CHANGE_DETAIL);
         return problem(HttpStatus.CONFLICT, CONCURRENT_CHANGE_DETAIL, CONCURRENT_CHANGE);

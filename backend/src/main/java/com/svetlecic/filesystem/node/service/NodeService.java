@@ -1,6 +1,7 @@
 package com.svetlecic.filesystem.node.service;
 
 import static java.util.Objects.isNull;
+import static java.util.Objects.nonNull;
 import static java.util.function.Function.identity;
 import static java.util.stream.Collectors.toMap;
 
@@ -74,7 +75,7 @@ public class NodeService {
         var page = Stream.concat(folders.stream(), files.stream()).toList();
         var items = page.stream().limit(size).toList();
         var nextCursor = page.size() > size ? PageCursor.after(items.getLast()).encode() : null;
-        return nodeMapper.toFolderPageResponse(items, nextCursor);
+        return nodeMapper.toFolderPageResponse(items, nextCursor, nodeRepository.countByParentId(folderId));
     }
 
     @Transactional
@@ -111,6 +112,23 @@ public class NodeService {
 
         var node = nodeRepository.save(parent.newChild(type, name));
         log.info("Created {} {} in {}", type.getCode(), node.getId(), parentId);
+        return nodeMapper.toNodeResponse(node);
+    }
+
+    @Transactional
+    public NodeResponse rename(long id, @NonNull NodeType type, @NonNull String rawName) {
+
+        var name = NodeNameNormalizer.normalize(rawName);
+        nodeNameValidator.validate(name);
+        var node = NodeType.FOLDER.equals(type) ? findFolder(id) : findFile(id);
+        var key = NodeNameNormalizer.key(name);
+        if (!key.equals(node.getNameKey()) && nonNull(node.getParentId())
+            && nodeRepository.existsByParentIdAndNameKey(node.getParentId(), key)) {
+            throw new NameAlreadyExistsException(node.getParentId());
+        }
+
+        node.rename(name);
+        log.info("Renamed {} {}", type.getCode(), id);
         return nodeMapper.toNodeResponse(node);
     }
 

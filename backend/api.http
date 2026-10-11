@@ -93,6 +93,14 @@ GET {{api}}/search/suggestions?prefix=rep
 ### One file
 GET {{api}}/files/{{fileId}}
 
+### Rename the file
+PATCH {{api}}/files/{{fileId}}
+Content-Type: application/json
+
+{
+  "name": "report-final.pdf"
+}
+
 ### Delete the file (204)
 DELETE {{api}}/files/{{fileId}}
 

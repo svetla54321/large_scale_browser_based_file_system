@@ -1,10 +1,6 @@
 # Architecture
 
-## Runtime
-
-With Docker Compose the browser talks only to nginx. nginx serves the built React app and forwards `/api/` to the
-backend, so the UI and the API share one origin and no CORS configuration is needed. Only nginx and the database
-publish ports, and both bind to `127.0.0.1`.
+## Runtime with Docker Compose
 
 ```mermaid
 flowchart LR
@@ -19,8 +15,7 @@ flowchart LR
     backend -->|JDBC| db
 ```
 
-During development the same split runs on the host: the Vite dev server on `:5173` proxies `/api` to the backend
-started from the IDE on `:8080`, and only the database runs in Docker (`docker compose up -d db`).
+## Runtime during development
 
 ```mermaid
 flowchart LR
@@ -29,10 +24,7 @@ flowchart LR
     backend -->|"127.0.0.1:5432"| db[("db container")]
 ```
 
-## Backend
-
-Packages are split by feature (`node`, `search`, `ping`) and layered inside each feature. Shared building blocks
-live in `common`, and HTTP concerns that apply to every request live in `web`.
+## Backend packages
 
 ```mermaid
 flowchart TB
@@ -68,13 +60,7 @@ flowchart TB
     searchService -. ApplicationException .-> handler
 ```
 
-- Writes and folder listings go through JPA, because they work with whole entities and benefit from auditing and
-  optimistic locking.
-- Search reads only the columns it needs with hand-written SQL through `JdbcClient`, so the query matches the
-  partial index exactly and `EXPLAIN` shows what runs.
-- Every error leaves through one handler, so every 4xx has the same shape and a stable `code`.
-
-## Frontend
+## Frontend components
 
 ```mermaid
 flowchart TB
@@ -97,6 +83,3 @@ flowchart TB
     useSuggestions --> api
     useResults --> api
 ```
-
-State that the user can share or bookmark (the open folder, the search) lives in the URL. Everything else is local
-component state; there is no global store.

@@ -52,9 +52,6 @@ sequenceDiagram
     UI->>User: list with a link to each file's folder, Load more
 ```
 
-Without `folderId` the range is `['/', '0')`, which covers every path, so the same query and index serve the global
-search.
-
 ## Suggestions while typing
 
 ```mermaid
@@ -108,7 +105,3 @@ sequenceDiagram
     API-->>UI: 204 No Content
     UI->>UI: removes the row, moves focus to the next row, announces the delete
 ```
-
-A 404 on delete is shown as success, because the item is gone either way. Every connection has `lock_timeout = 5s`,
-so a write into a subtree that a long delete keeps locked fails with 409 `CONCURRENT_CHANGE` instead of holding a
-pooled connection.

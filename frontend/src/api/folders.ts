@@ -32,6 +32,15 @@ export function createFile(parentId: number, name: string) {
   })
 }
 
+export function renameNode(node: Pick<NodeResponse, 'id' | 'type'>, name: string) {
+  const resource = node.type === 'FOLDER' ? 'folders' : 'files'
+  return apiFetch<NodeResponse>(`/${resource}/${node.id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name }),
+  })
+}
+
 export function deleteNode(node: Pick<NodeResponse, 'id' | 'type'>) {
   const resource = node.type === 'FOLDER' ? 'folders' : 'files'
   return apiFetch<void>(`/${resource}/${node.id}`, { method: 'DELETE' })

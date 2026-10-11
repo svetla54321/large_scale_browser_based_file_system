@@ -28,6 +28,12 @@ export function FolderMissing() {
   )
 }
 
+function countText(shown: number, total: number) {
+  const noun = total === 1 ? 'item' : 'items'
+  const all = total.toLocaleString('en')
+  return shown < total ? `${shown.toLocaleString('en')} of ${all} ${noun}` : `${all} ${noun}`
+}
+
 function FolderView({ folderId }: { folderId: number | null }) {
   const { state, retry, loadMore, insertItem, removeItem } = useFolder(folderId)
   const [missing, setMissing] = useState(false)
@@ -62,7 +68,7 @@ function FolderView({ folderId }: { folderId: number | null }) {
     )
   }
 
-  const { folder, items, nextCursor } = state
+  const { folder, items, nextCursor, totalItems } = state
 
   async function handleLoadMore(cursor: string) {
     setLoadingMore(true)
@@ -122,6 +128,15 @@ function FolderView({ folderId }: { folderId: number | null }) {
     setNotice(`${kind} "${item.name}" deleted.`)
   }
 
+  function handleRenamed(previous: NodeResponse, renamed: NodeResponse) {
+    const kind = previous.type === 'FOLDER' ? 'Folder' : 'File'
+    setMoreError(null)
+    removeItem(previous.id)
+    insertItem(renamed)
+    setFocusRequest({ id: renamed.id })
+    setNotice(`${kind} "${previous.name}" renamed to "${renamed.name}".`)
+  }
+
   function handleCreated(node: NodeResponse) {
     setMoreError(null)
     setNotice(null)
@@ -135,8 +150,16 @@ function FolderView({ folderId }: { folderId: number | null }) {
       <h2 ref={headingRef} tabIndex={-1}>
         {folder.name}
       </h2>
-      <NodeList items={items} focusRequest={focusRequest} deleting={deleting} onDelete={handleDelete} />
+      <NodeList
+        items={items}
+        focusRequest={focusRequest}
+        deleting={deleting}
+        onDelete={handleDelete}
+        onRenamed={handleRenamed}
+        onGone={(item) => removeItem(item.id)}
+      />
       {items.length === 0 && nextCursor === null && <p className="empty">This folder is empty.</p>}
+      {totalItems > 0 && <p className="count">{countText(items.length, totalItems)}</p>}
       {nextCursor && (
         <button type="button" onClick={() => handleLoadMore(nextCursor)} disabled={loadingMore}>
           {loadingMore ? 'Loading...' : 'Load more'}

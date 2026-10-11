@@ -43,7 +43,7 @@ class ApiExceptionHandlerTest {
 
     @Test
     void shouldTurnLockTimeoutIntoConflict() {
-        var problem = apiExceptionHandler.handleLockTimeout(
+        var problem = apiExceptionHandler.handleConcurrentChange(
             new PessimisticLockingFailureException("canceling statement due to lock timeout"), request);
 
         assertThat(problem.getStatus()).isEqualTo(409);

@@ -48,6 +48,11 @@ public class Node extends BaseEntity {
         return new Node(getId(), childType, childName, ancestorPath + getId() + "/");
     }
 
+    public void rename(String newName) {
+        this.name = newName;
+        this.nameKey = NodeNameNormalizer.key(newName);
+    }
+
     public boolean isFolder() {
         return NodeType.FOLDER.equals(type);
     }

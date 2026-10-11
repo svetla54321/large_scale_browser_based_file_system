@@ -15,6 +15,8 @@ public interface NodeRepository extends JpaRepository<Node, Long> {
 
     boolean existsByParentIdAndNameKey(long parentId, String nameKey);
 
+    long countByParentId(long parentId);
+
     List<Node> findByParentIdAndTypeAndNameGreaterThanOrderByNameAsc(
         long parentId, NodeType type, String name, Limit limit);
 

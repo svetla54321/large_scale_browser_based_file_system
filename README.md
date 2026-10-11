@@ -146,10 +146,12 @@ log. Validation errors list every broken rule in `errors[{field, code, message}]
 |---|---|---|
 | `GET /folders/root` | 200 folder | |
 | `GET /folders/{id}` | 200 folder with `breadcrumbs` (root to parent) | 404 |
-| `GET /folders/{id}/children?cursor=&size=50` | 200 `{items, nextCursor}`, folders first, then files, by name | 400 `INVALID_CURSOR`, 404 |
+| `GET /folders/{id}/children?cursor=&size=50` | 200 `{items, nextCursor, totalItems}`, folders first, then files, by name | 400 `INVALID_CURSOR`, 404 |
 | `POST /folders/{parentId}/folders` `{"name"}` | 201 with `Location` | 400 `VALIDATION_FAILED` / `MAX_DEPTH_EXCEEDED`, 404, 409 `NAME_ALREADY_EXISTS` / `CONCURRENT_CHANGE` |
 | `POST /folders/{parentId}/files` `{"name"}` | 201 with `Location` | 400, 404, 409 as above |
 | `GET /files/{id}` | 200 file | 404 |
+| `PATCH /folders/{id}` `{"name"}` | 200 renamed folder | 400 `VALIDATION_FAILED`, 404, 409 `NAME_ALREADY_EXISTS` / `CONCURRENT_CHANGE` |
+| `PATCH /files/{id}` `{"name"}` | 200 renamed file | 400, 404, 409 as above |
 | `DELETE /folders/{id}` | 204, the whole subtree is deleted | 404, 409 `ROOT_FOLDER_NOT_DELETABLE` / `CONCURRENT_CHANGE` |
 | `DELETE /files/{id}` | 204 | 404 |
 | `GET /search/files?name=&folderId=&cursor=&size=50` | 200 `{items, nextCursor}`, each hit with its `folderPath` | 400 `VALIDATION_FAILED` (empty, too long or invisible characters, listed in `errors`) / `INVALID_CURSOR`, 404 for an unknown folder |
@@ -276,7 +278,7 @@ The current design targets about ten million entries on one PostgreSQL instance.
 
 ## Not implemented
 
-Rename, move and copy; file contents, upload and download; users, authentication and sharing; trash and restore;
+Move and copy; file contents, upload and download; users, authentication and sharing; trash and restore;
 version history; live updates between tabs; selecting several items at once; searching for folders; "contains" and
 fuzzy search; a polished visual design.
 

@@ -66,7 +66,7 @@ export function SearchBox() {
     } else if (event.key === 'ArrowUp' && showList) {
       event.preventDefault()
       moveTo(Math.max(active - 1, -1))
-    } else if (event.key === 'Escape' && showList) {
+    } else if (event.key === 'Escape' && open) {
       event.preventDefault()
       close()
     } else if (event.key === 'Enter' && showList && active >= 0) {
@@ -131,6 +131,11 @@ export function SearchBox() {
           )
         })}
       </ul>
+      {open && suggestions.prefix !== '' && items.length === 0 && (
+        <p className="suggestions no-suggestions" role="status">
+          No files start with "{suggestions.prefix.trim()}"
+        </p>
+      )}
     </form>
   )
 }

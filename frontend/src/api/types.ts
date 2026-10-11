@@ -23,6 +23,7 @@ export interface NodeResponse {
 export interface FolderPageResponse {
   items: NodeResponse[]
   nextCursor: string | null
+  totalItems: number
 }
 
 export interface FileHitResponse {

@@ -7,6 +7,7 @@ import com.svetlecic.filesystem.node.dto.CreateFolderRequest;
 import com.svetlecic.filesystem.node.dto.FolderPageResponse;
 import com.svetlecic.filesystem.node.dto.FolderResponse;
 import com.svetlecic.filesystem.node.dto.NodeResponse;
+import com.svetlecic.filesystem.node.dto.RenameRequest;
 import com.svetlecic.filesystem.node.service.NodeService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -24,6 +25,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -117,6 +119,22 @@ class FolderController {
         var file = nodeService.create(parentId, NodeType.FILE, request.name());
         var location = URI.create("/api/%s/files/%d".formatted(version, file.id()));
         return ResponseEntity.created(location).body(file);
+    }
+
+    @Operation(summary = "Rename a folder")
+    @ApiResponse(responseCode = "200", description = "Folder renamed")
+    @ApiResponse(responseCode = "400", description = "Invalid name",
+        content = @Content(mediaType = PROBLEM_JSON, schema = @Schema(implementation = ProblemResponse.class)))
+    @ApiResponse(responseCode = "404", description = "Folder not found",
+        content = @Content(mediaType = PROBLEM_JSON, schema = @Schema(implementation = ProblemResponse.class)))
+    @ApiResponse(responseCode = "409", description = "Name already taken",
+        content = @Content(mediaType = PROBLEM_JSON, schema = @Schema(implementation = ProblemResponse.class)))
+    @PatchMapping("/{id}")
+    NodeResponse renameFolder(
+        @Parameter(description = "Folder id", example = "42") @PathVariable long id,
+        @Valid @RequestBody RenameRequest request) {
+
+        return nodeService.rename(id, NodeType.FOLDER, request.name());
     }
 
     @Operation(summary = "Delete a folder and everything in it")
